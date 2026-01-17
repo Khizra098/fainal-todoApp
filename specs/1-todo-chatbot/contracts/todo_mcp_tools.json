@@ -1,0 +1,341 @@
+# API Contracts: MCP Tools for Todo AI Chatbot
+
+## Overview
+MCP (Model Context Protocol) tools that the AI agent can use to interact with the todo system. Each tool follows the standard MCP format and is exposed via FastAPI endpoints.
+
+## Tool 1: Create Todo
+**Purpose**: Creates a new todo item based on user request
+
+### Request
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "create_todo",
+    "description": "Create a new todo item",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Description of the task to create"
+        },
+        "due_date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Optional due date in ISO 8601 format"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Priority level of the task"
+        }
+      },
+      "required": ["description"]
+    }
+  }
+}
+```
+
+### Response
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "Whether the operation was successful"
+    },
+    "task": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "integer"},
+        "description": {"type": "string"},
+        "status": {"type": "string"},
+        "created_date": {"type": "string", "format": "date-time"},
+        "due_date": {"type": "string", "format": "date-time"},
+        "priority": {"type": "string"}
+      }
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message if operation failed"
+    }
+  }
+}
+```
+
+## Tool 2: List Todos
+**Purpose**: Retrieve a list of todo items with optional filtering
+
+### Request
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "list_todos",
+    "description": "Retrieve a list of todo items with optional filtering",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "completed", "in-progress"],
+          "description": "Filter by task status"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Filter by priority level"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Maximum number of tasks to return"
+        }
+      }
+    }
+  }
+}
+```
+
+### Response
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "description": {"type": "string"},
+          "status": {"type": "string"},
+          "created_date": {"type": "string", "format": "date-time"},
+          "due_date": {"type": "string", "format": "date-time"},
+          "priority": {"type": "string"}
+        }
+      }
+    },
+    "error": {
+      "type": "string"
+    }
+  }
+}
+```
+
+## Tool 3: Update Todo Status
+**Purpose**: Change the status of a specific todo item
+
+### Request
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "update_todo_status",
+    "description": "Update the status of a specific todo item",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "integer",
+          "description": "ID of the task to update"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "completed", "in-progress"],
+          "description": "New status for the task"
+        }
+      },
+      "required": ["task_id", "status"]
+    }
+  }
+}
+```
+
+### Response
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "task": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "integer"},
+        "description": {"type": "string"},
+        "status": {"type": "string"},
+        "updated": {"type": "boolean"}
+      }
+    },
+    "error": {
+      "type": "string"
+    }
+  }
+}
+```
+
+## Tool 4: Delete Todo
+**Purpose**: Remove a specific todo item
+
+### Request
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "delete_todo",
+    "description": "Delete a specific todo item",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "integer",
+          "description": "ID of the task to delete"
+        }
+      },
+      "required": ["task_id"]
+    }
+  }
+}
+```
+
+### Response
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "deleted_task_id": {
+      "type": "integer",
+      "description": "ID of the deleted task"
+    },
+    "error": {
+      "type": "string"
+    }
+  }
+}
+```
+
+## Tool 5: Search Todos
+**Purpose**: Search for todos by description or other criteria
+
+### Request
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "search_todos",
+    "description": "Search for todos by description or other criteria",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search query string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "completed", "in-progress"],
+          "description": "Filter by task status"
+        }
+      },
+      "required": ["query"]
+    }
+  }
+}
+```
+
+### Response
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+          "properties": {
+            "id": {"type": "integer"},
+            "description": {"type": "string"},
+            "status": {"type": "string"},
+            "created_date": {"type": "string", "format": "date-time"},
+            "due_date": {"type": "string", "format": "date-time"},
+            "priority": {"type": "string"}
+          }
+      }
+    },
+    "error": {
+      "type": "string"
+    }
+  }
+}
+```
+
+## Tool 6: Set Reminder
+**Purpose**: Set a reminder for a specific task or event
+
+### Request
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "set_reminder",
+    "description": "Set a reminder for a specific task or event",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "integer",
+          "description": "ID of the task to set reminder for (optional)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the reminder"
+        },
+        "remind_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When to send the reminder in ISO 8601 format"
+        }
+      },
+      "required": ["remind_at"]
+    }
+  }
+}
+```
+
+### Response
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "reminder": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "integer"},
+        "description": {"type": "string"},
+        "remind_at": {"type": "string", "format": "date-time"},
+        "created_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "error": {
+      "type": "string"
+    }
+  }
+}
+```
