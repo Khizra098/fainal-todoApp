@@ -3,15 +3,141 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { authAPI } from '@/lib/api';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, updateUserData } = useAuth();
   const [activeTab, setActiveTab] = useState('account');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(user?.two_factor_enabled || false);
+  const [selectedTheme, setSelectedTheme] = useState(user?.theme || 'light');
+  const [selectedLanguage, setSelectedLanguage] = useState(user?.language || 'en');
+  const [notification, setNotification] = useState({ type: '', message: '' });
 
   const handleLogout = () => {
     logout();
     router.push('/');
+  };
+
+  const showNotification = (type, message) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification({ type: '', message: '' }), 3000);
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      showNotification('error', 'New passwords do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      showNotification('error', 'New password must be at least 6 characters');
+      return;
+    }
+
+    // Additional password validation
+    const hasUpperCase = /[A-Z]/.test(passwordData.newPassword);
+    const hasLowerCase = /[a-z]/.test(passwordData.newPassword);
+    const hasDigit = /\d/.test(passwordData.newPassword);
+
+    if (!hasUpperCase) {
+      showNotification('error', 'New password must contain at least one uppercase letter');
+      return;
+    }
+
+    if (!hasLowerCase) {
+      showNotification('error', 'New password must contain at least one lowercase letter');
+      return;
+    }
+
+    if (!hasDigit) {
+      showNotification('error', 'New password must contain at least one digit');
+      return;
+    }
+
+    try {
+      await authAPI.changePassword({
+        current_password: passwordData.currentPassword,
+        new_password: passwordData.newPassword
+      });
+
+      showNotification('success', 'Password changed successfully');
+
+      // Clear the form
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+
+      // Close the modal after a delay to show the success message
+      setTimeout(() => {
+        setShowPasswordModal(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Error changing password:', error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Failed to change password';
+      showNotification('error', errorMessage);
+    }
+  };
+
+  const handleToggleTwoFactor = async () => {
+    try {
+      const response = await authAPI.toggleTwoFactor({
+        enable: !twoFactorEnabled
+      });
+
+      if (response.data.success) {
+        setTwoFactorEnabled(!twoFactorEnabled);
+        showNotification('success', `Two-factor authentication ${twoFactorEnabled ? 'disabled' : 'enabled'} successfully`);
+      } else {
+        showNotification('error', 'Failed to update two-factor authentication');
+      }
+    } catch (error) {
+      showNotification('error', error.response?.data?.detail || 'Failed to update two-factor authentication');
+    }
+  };
+
+  const handleLogoutAllDevices = async () => {
+    try {
+      await authAPI.logoutAllDevices();
+      showNotification('success', 'Logged out from all devices successfully');
+      // Optionally log out the current user too
+      // logout();
+      // router.push('/');
+    } catch (error) {
+      showNotification('error', error.response?.data?.message || 'Failed to log out from all devices');
+    }
+  };
+
+  const handleUpdatePreferences = async (theme, language) => {
+    try {
+      const response = await authAPI.updatePreferences({
+        theme: theme,
+        language: language
+      });
+
+      // Update local state
+      setSelectedTheme(response.data.theme);
+      setSelectedLanguage(response.data.language);
+
+      // Update the global user context to reflect the new preferences
+      // This ensures consistency across the application
+      // Update the user in the auth context with the new theme and language
+      updateUserData({
+        ...user,
+        theme: response.data.theme,
+        language: response.data.language
+      });
+
+      showNotification('success', 'Preferences updated successfully');
+    } catch (error) {
+      console.error('Error updating preferences:', error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Failed to update preferences';
+      showNotification('error', errorMessage);
+    }
   };
 
   if (isLoading) {
@@ -45,8 +171,177 @@ export default function SettingsPage() {
     <div style={{
       minHeight: '100vh',
       backgroundColor: '#f5f5f5',
-      padding: '20px'
+      padding: '20px',
+      position: 'relative'
     }}>
+      {/* Notification */}
+      {notification.message && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          padding: '12px 20px',
+          borderRadius: '4px',
+          backgroundColor: notification.type === 'success' ? '#d4edda' : '#f8d7da',
+          color: notification.type === 'success' ? '#155724' : '#721c24',
+          border: `1px solid ${notification.type === 'success' ? '#c3e6cb' : '#f5c6cb'}`,
+          zIndex: 1000,
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+        }}>
+          {notification.message}
+        </div>
+      )}
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            maxWidth: '400px',
+            width: '90%'
+          }}>
+            <h3 style={{
+              fontSize: '20px',
+              fontWeight: '600',
+              color: '#333',
+              marginBottom: '20px'
+            }}>
+              Change Password
+            </h3>
+
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#555',
+                marginBottom: '4px'
+              }}>
+                Current Password
+              </label>
+              <input
+                type="password"
+                value={passwordData.currentPassword}
+                onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '16px'
+                }}
+                placeholder="Enter current password"
+              />
+            </div>
+
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#555',
+                marginBottom: '4px'
+              }}>
+                New Password
+              </label>
+              <input
+                type="password"
+                value={passwordData.newPassword}
+                onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '16px'
+                }}
+                placeholder="Enter new password"
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#555',
+                marginBottom: '4px'
+              }}>
+                Confirm New Password
+              </label>
+              <input
+                type="password"
+                value={passwordData.confirmPassword}
+                onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '16px'
+                }}
+                placeholder="Confirm new password"
+              />
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: '10px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#5a6268'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#6c757d'}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleChangePassword}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#218838'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#28a745'}
+              >
+                Change Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{
         maxWidth: '800px',
         margin: '0 auto',
@@ -341,7 +636,13 @@ export default function SettingsPage() {
                       fontSize: '16px',
                       backgroundColor: 'white'
                     }}
-                    defaultValue="light"
+                    value={selectedTheme}
+                    onChange={(e) => {
+                      const newTheme = e.target.value;
+                      const newLanguage = selectedLanguage; // Capture current language value
+                      setSelectedTheme(newTheme);
+                      handleUpdatePreferences(newTheme, newLanguage);
+                    }}
                   >
                     <option value="light">Light Theme</option>
                     <option value="dark">Dark Theme</option>
@@ -368,7 +669,13 @@ export default function SettingsPage() {
                       fontSize: '16px',
                       backgroundColor: 'white'
                     }}
-                    defaultValue="en"
+                    value={selectedLanguage}
+                    onChange={(e) => {
+                      const newLanguage = e.target.value;
+                      const newTheme = selectedTheme; // Capture current theme value
+                      setSelectedLanguage(newLanguage);
+                      handleUpdatePreferences(newTheme, newLanguage);
+                    }}
                   >
                     <option value="en">English</option>
                     <option value="es">Spanish</option>
@@ -461,6 +768,7 @@ export default function SettingsPage() {
                     Your password is currently set and secure.
                   </p>
                   <button
+                    onClick={() => setShowPasswordModal(true)}
                     style={{
                       padding: '8px 16px',
                       backgroundColor: '#17a2b8',
@@ -499,7 +807,7 @@ export default function SettingsPage() {
                     You are currently logged in from this device.
                   </p>
                   <button
-                    onClick={handleLogout}
+                    onClick={handleLogoutAllDevices}
                     style={{
                       padding: '8px 16px',
                       backgroundColor: '#dc3545',
@@ -535,12 +843,15 @@ export default function SettingsPage() {
                     color: '#155724',
                     marginBottom: '12px'
                   }}>
-                    Two-factor authentication is not enabled on your account.
+                    {twoFactorEnabled
+                      ? 'Two-factor authentication is currently enabled on your account.'
+                      : 'Two-factor authentication is not enabled on your account.'}
                   </p>
                   <button
+                    onClick={handleToggleTwoFactor}
                     style={{
                       padding: '8px 16px',
-                      backgroundColor: '#28a745',
+                      backgroundColor: twoFactorEnabled ? '#dc3545' : '#28a745',
                       color: 'white',
                       border: 'none',
                       borderRadius: '4px',
@@ -548,10 +859,10 @@ export default function SettingsPage() {
                       fontSize: '14px',
                       transition: 'background-color 0.2s'
                     }}
-                    onMouseOver={(e) => e.target.style.backgroundColor = '#218838'}
-                    onMouseOut={(e) => e.target.style.backgroundColor = '#28a745'}
+                    onMouseOver={(e) => e.target.style.backgroundColor = twoFactorEnabled ? '#c82333' : '#218838'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = twoFactorEnabled ? '#dc3545' : '#28a745'}
                   >
-                    Enable 2FA
+                    {twoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'}
                   </button>
                 </div>
               </div>

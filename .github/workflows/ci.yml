@@ -1,0 +1,55 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        # Install frontend dependencies
+        cd frontend
+        npm ci
+
+        # Install backend dependencies
+        cd ../backend
+        pip install -r requirements.txt
+
+    - name: Run frontend tests
+      run: |
+        cd frontend
+        npm test
+
+    - name: Run backend tests
+      run: |
+        cd backend
+        pytest tests/
+
+    - name: Build Docker images
+      run: |
+        docker build -t todo-frontend:test -f docker/frontend/Dockerfile .
+        docker build -t todo-backend:test -f docker/backend/Dockerfile .
+
+    - name: Run security scan
+      run: |
+        # Run security scan on Docker images
+        docker scan todo-frontend:test || true
+        docker scan todo-backend:test || true

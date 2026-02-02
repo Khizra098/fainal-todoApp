@@ -15,12 +15,29 @@ export function AuthProvider({ children }) {
     const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (storedToken) {
       setToken(storedToken);
-      // Optionally verify token or fetch user data here
-      // For now, we'll just set a dummy user object
-      setUser({ id: 1, email: 'user@example.com' }); // This would typically come from token decode or API call
+      // Fetch user details from API
+      fetchUserDetailsFromAPI();
+    } else {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
+
+  const fetchUserDetailsFromAPI = async () => {
+    try {
+      const response = await authAPI.getUserDetails();
+      setUser(response.data);
+    } catch (error) {
+      console.error('Failed to fetch user details:', error);
+      // Clear token if unauthorized
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        setToken(null);
+        setUser(null);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (email, password) => {
     try {
@@ -29,11 +46,22 @@ export function AuthProvider({ children }) {
 
       localStorage.setItem('token', newToken);
       setToken(newToken);
-      setUser({ id: 1, email }); // This would typically come from the response
+
+      // Fetch user details after successful login
+      const userDetailsResponse = await authAPI.getUserDetails();
+      setUser(userDetailsResponse.data);
 
       return response;
     } catch (error) {
-      throw error;
+      // Extract error message from response or provide default
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Login failed. Please try again.';
+
+      // Create a new error with the better message
+      const enhancedError = new Error(errorMessage);
+      enhancedError.status = error.response?.status;
+      enhancedError.response = error.response;
+
+      throw enhancedError;
     }
   };
 
@@ -44,11 +72,22 @@ export function AuthProvider({ children }) {
 
       localStorage.setItem('token', newToken);
       setToken(newToken);
-      setUser({ id: 1, email, name });
+
+      // Fetch user details after successful registration
+      const userDetailsResponse = await authAPI.getUserDetails();
+      setUser(userDetailsResponse.data);
 
       return response;
     } catch (error) {
-      throw error;
+      // Extract error message from response or provide default
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Registration failed. Please try again.';
+
+      // Create a new error with the better message
+      const enhancedError = new Error(errorMessage);
+      enhancedError.status = error.response?.status;
+      enhancedError.response = error.response;
+
+      throw enhancedError;
     }
   };
 
@@ -56,6 +95,10 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
+  };
+
+  const updateUserData = (userData) => {
+    setUser(prevUser => ({ ...prevUser, ...userData }));
   };
 
   const updateUserProfile = async (userData) => {
@@ -68,7 +111,15 @@ export function AuthProvider({ children }) {
 
       return response;
     } catch (error) {
-      throw error;
+      // Extract error message from response or provide default
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Failed to update profile. Please try again.';
+
+      // Create a new error with the better message
+      const enhancedError = new Error(errorMessage);
+      enhancedError.status = error.response?.status;
+      enhancedError.response = error.response;
+
+      throw enhancedError;
     }
   };
 
@@ -80,7 +131,8 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
-    updateUserProfile
+    updateUserProfile,
+    updateUserData
   };
 
   return (

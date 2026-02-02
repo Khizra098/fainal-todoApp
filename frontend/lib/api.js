@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8003';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -28,6 +28,11 @@ export const authAPI = {
   login: (credentials) => apiClient.post('/auth/login', credentials),
   register: (userData) => apiClient.post('/auth/register', userData),
   updateUserProfile: (userData) => apiClient.put('/auth/profile', userData),
+  getUserDetails: () => apiClient.get('/auth/me'),
+  changePassword: (passwordData) => apiClient.put('/auth/change-password', passwordData),
+  toggleTwoFactor: (toggleData) => apiClient.post('/auth/toggle-two-factor', toggleData),
+  updatePreferences: (prefsData) => apiClient.put('/auth/preferences', prefsData),
+  logoutAllDevices: () => apiClient.post('/auth/logout-all-devices'),
   logout: () => {
     localStorage.removeItem('token');
   }
@@ -78,3 +83,19 @@ export const mcpAPI = {
   searchTodos: (searchData) => apiClient.post('/api/v1/mcp/search_todos', searchData),
   setReminder: (reminderData) => apiClient.post('/api/v1/mcp/set_reminder', reminderData)
 };
+
+// Verification API
+export const verificationAPI = {
+  getFeatures: () => apiClient.get('/api/v1/verification/features'),
+  getFeatureById: (featureId) => apiClient.get(`/api/v1/verification/features/${featureId}`),
+  verifyFeature: (featureId) => apiClient.post(`/api/v1/verification/features/${featureId}/verify`),
+  getVerificationReport: (featureId) => apiClient.get(`/api/v1/verification/features/${featureId}/report`)
+};
+
+// Export individual functions for backward compatibility
+export const {
+  getFeatures,
+  getFeatureById,
+  verifyFeature,
+  getVerificationReport
+} = verificationAPI;

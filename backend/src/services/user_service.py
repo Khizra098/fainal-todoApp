@@ -1,6 +1,8 @@
 """User service for the Todo Chatbot API."""
 from sqlalchemy.orm import Session
 from ..models.user import User
+import pyotp
+
 
 class UserService:
     def __init__(self, db: Session):
@@ -31,7 +33,8 @@ class UserService:
         user = self.get_user_by_id(user_id)
         if user:
             for key, value in kwargs.items():
-                setattr(user, key, value)
+                if hasattr(user, key):  # Only set attributes that exist on the user model
+                    setattr(user, key, value)
             self.db.commit()
             self.db.refresh(user)
         return user
@@ -44,3 +47,62 @@ class UserService:
             self.db.commit()
             return True
         return False
+
+    def change_password(self, user_id: int, current_password: str, new_password: str) -> bool:
+        """Change user password after verifying current password."""
+        user = self.get_user_by_id(user_id)
+        if not user:
+            return False
+
+        # Import the password verification function from auth_handler for bcrypt consistency
+        from ..auth.auth_handler import verify_password, get_password_hash
+
+        # Verify current password (using bcrypt)
+        if not verify_password(current_password, user.password_hash):
+            return False
+
+        # Hash and update new password using bcrypt
+        new_password_hash = get_password_hash(new_password)
+        user.password_hash = new_password_hash
+        self.db.commit()
+        return True
+
+    def toggle_two_factor(self, user_id: int, enable: bool) -> bool:
+        """Toggle two-factor authentication for user."""
+        user = self.get_user_by_id(user_id)
+        if not user:
+            return False
+
+        user.two_factor_enabled = enable
+        if not enable:
+            user.two_factor_secret = None
+        self.db.commit()
+        return True
+
+    def setup_two_factor(self, user_id: int) -> tuple[str, str]:
+        """Setup two-factor authentication for user."""
+        user = self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        # Generate a random secret
+        secret = pyotp.random_base32()
+        user.two_factor_secret = secret
+        self.db.commit()
+
+        # Generate QR code for authenticator apps
+        totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
+            name=user.email,
+            issuer_name="Todo Chatbot"
+        )
+
+        return secret, totp_uri
+
+    def verify_two_factor_code(self, user_id: int, code: str) -> bool:
+        """Verify two-factor authentication code."""
+        user = self.get_user_by_id(user_id)
+        if not user or not user.two_factor_secret:
+            return False
+
+        totp = pyotp.TOTP(user.two_factor_secret)
+        return totp.verify(code)

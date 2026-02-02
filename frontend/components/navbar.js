@@ -118,26 +118,33 @@ export default function Navbar() {
           >
             Settings
           </Link>
-          <span style={{ margin: '0 1rem' }}>
-            Welcome, {user.name}
-          </span>
-          <button
-            onClick={handleLogout}
-            style={{
-              backgroundColor: '#dc3545',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              margin: '0 1rem',
-              transition: 'background-color 0.2s'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
-          >
-            Logout
-          </button>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            marginLeft: 'auto',
+            gap: '1rem'
+          }}>
+            <span style={{ margin: '0' }}>
+              Welcome, {user.name}
+            </span>
+            <button
+              onClick={handleLogout}
+              style={{
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                margin: '0',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
+            >
+              Logout
+            </button>
+          </div>
         </>
       ) : (
         <>

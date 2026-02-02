@@ -3,8 +3,10 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from .database import get_db, engine
-from .models.task import Base
-from .models.user import Base as UserBase  # Import user base for table creation
+from .models.task import Base as TaskBase  # Main task, conversation, message models
+from .models.user import Base as UserBase  # User models
+from .models.response import Base as ResponseBase  # Response models
+from .models.conversation import Base as ConversationBase  # Conversation models (though we're not using this one)
 from .api.v1.todo_routes import router as todo_router
 from .api.v1.mcp_routes import router as mcp_router
 from .api.v1.auth_routes import router as auth_router
@@ -13,11 +15,13 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # Create database tables
-Base.metadata.create_all(bind=engine)
-UserBase.metadata.create_all(bind=engine)  # Create user tables too
+# Now create all tables at once - SQLAlchemy will handle dependencies
+TaskBase.metadata.create_all(bind=engine)  # Main models (task, conversation, message)
+UserBase.metadata.create_all(bind=engine)  # User models
+ResponseBase.metadata.create_all(bind=engine)  # Response models
 
 # Create FastAPI app
 app = FastAPI(

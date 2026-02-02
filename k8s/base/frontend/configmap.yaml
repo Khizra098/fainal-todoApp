@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: todo-app-prod
+data:
+  NEXT_PUBLIC_APP_NAME: "Todo App Production"
+  NEXT_PUBLIC_API_TIMEOUT: "30000"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: todo-app-dev
+data:
+  NEXT_PUBLIC_APP_NAME: "Todo App Development"
+  NEXT_PUBLIC_API_TIMEOUT: "60000"

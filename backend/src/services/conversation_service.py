@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
-from ..models.task import Conversation, Message, RoleType, ConversationStatus
+from ..models.task import Conversation as ConversationModel, Message as MessageModel
 from ..database import get_db
 
 
@@ -21,27 +21,35 @@ class ConversationService:
         """
         self.db = db
 
-    def create_conversation(self, user_id: int, title: str = "New Conversation") -> Conversation:
+    def create_conversation(self, user_id: str, title: str = "New Chat", initial_message: str = None) -> ConversationModel:
         """
         Create a new conversation thread.
 
         Args:
             user_id: ID of the user starting the conversation
-            title: Title for the conversation (default: "New Conversation")
+            title: Title for the conversation (default: "New Chat")
+            initial_message: Optional first message to generate title from
 
         Returns:
             The newly created Conversation object
-
-        Raises:
-            ValueError: If title is empty or None
         """
         if not title or not title.strip():
-            raise ValueError("Conversation title cannot be empty")
+            if initial_message and initial_message.strip():
+                # Generate title from first few words of the initial message
+                words = initial_message.strip().split()[:5]  # Take first 5 words
+                title = " ".join(words)
+                if len(initial_message.strip().split()) > 5:
+                    title += "..."
+            else:
+                title = "New Chat"
 
-        conversation = Conversation(
-            user_id=user_id,
+        # Convert user_id to integer for the task model
+        user_id_int = int(user_id) if isinstance(user_id, str) and user_id.isdigit() else user_id
+
+        conversation = ConversationModel(
+            user_id=user_id_int,
             title=title.strip(),
-            status=ConversationStatus.active
+            status="active"
         )
 
         try:
@@ -53,7 +61,26 @@ class ConversationService:
             self.db.rollback()
             raise ValueError(f"Failed to create conversation for user {user_id}")
 
-    def get_conversation_by_id(self, conversation_id: int, user_id: int) -> Optional[Conversation]:
+    def get_conversation(self, conversation_id: str) -> Optional[ConversationModel]:
+        """
+        Get a specific conversation by its ID.
+
+        Args:
+            conversation_id: ID of the conversation to retrieve
+
+        Returns:
+            Conversation object if found, None otherwise
+        """
+        try:
+            conversation_id_int = int(conversation_id)
+            return self.db.query(ConversationModel).filter(
+                ConversationModel.id == conversation_id_int
+            ).first()
+        except ValueError:
+            # If conversion to int fails, return None
+            return None
+
+    def get_conversation_by_user(self, conversation_id: str, user_id: str) -> Optional[ConversationModel]:
         """
         Get a specific conversation by its ID for a specific user.
 
@@ -64,12 +91,18 @@ class ConversationService:
         Returns:
             Conversation object if found and belongs to user, None otherwise
         """
-        return self.db.query(Conversation).filter(
-            Conversation.id == conversation_id,
-            Conversation.user_id == user_id
-        ).first()
+        try:
+            conversation_id_int = int(conversation_id)
+            user_id_int = int(user_id) if isinstance(user_id, str) and user_id.isdigit() else user_id
+            return self.db.query(ConversationModel).filter(
+                ConversationModel.id == conversation_id_int,
+                ConversationModel.user_id == user_id_int
+            ).first()
+        except ValueError:
+            # If conversion to int fails, return None
+            return None
 
-    def get_user_conversations(self, user_id: int, status: Optional[ConversationStatus] = None) -> List[Conversation]:
+    def get_user_conversations(self, user_id: str, status: Optional[str] = None) -> List[ConversationModel]:
         """
         Get all conversations for a specific user with optional status filtering.
 
@@ -80,14 +113,15 @@ class ConversationService:
         Returns:
             List of Conversation objects for the user
         """
-        query = self.db.query(Conversation).filter(Conversation.user_id == user_id)
+        user_id_int = int(user_id) if isinstance(user_id, str) and user_id.isdigit() else user_id
+        query = self.db.query(ConversationModel).filter(ConversationModel.user_id == user_id_int)
 
         if status:
-            query = query.filter(Conversation.status == status)
+            query = query.filter(ConversationModel.status == status)
 
         return query.all()
 
-    def update_conversation_status(self, conversation_id: int, user_id: int, status: ConversationStatus) -> bool:
+    def update_conversation_status(self, conversation_id: str, user_id: str, status: str) -> bool:
         """
         Update the status of a conversation.
 
@@ -99,7 +133,7 @@ class ConversationService:
         Returns:
             True if the conversation was updated, False if not found or not owned by user
         """
-        conversation = self.get_conversation_by_id(conversation_id, user_id)
+        conversation = self.get_conversation_by_user(conversation_id, user_id)
         if conversation:
             conversation.status = status
             conversation.updated_at = datetime.utcnow()
@@ -108,7 +142,7 @@ class ConversationService:
             return True
         return False
 
-    def archive_conversation(self, conversation_id: int, user_id: int) -> bool:
+    def archive_conversation(self, conversation_id: str, user_id: str) -> bool:
         """
         Archive a conversation.
 
@@ -119,9 +153,9 @@ class ConversationService:
         Returns:
             True if the conversation was archived, False if not found or not owned by user
         """
-        return self.update_conversation_status(conversation_id, user_id, ConversationStatus.archived)
+        return self.update_conversation_status(conversation_id, user_id, "archived")
 
-    def delete_conversation(self, conversation_id: int, user_id: int) -> bool:
+    def delete_conversation(self, conversation_id: str, user_id: str) -> bool:
         """
         Delete a conversation by its ID for a specific user.
 
@@ -132,36 +166,41 @@ class ConversationService:
         Returns:
             True if the conversation was deleted, False if not found or not owned by user
         """
-        conversation = self.get_conversation_by_id(conversation_id, user_id)
+        conversation = self.get_conversation_by_user(conversation_id, user_id)
         if conversation:
             self.db.delete(conversation)
             self.db.commit()
             return True
         return False
 
-    def add_message_to_conversation(self, conversation_id: int, user_id: int, role: RoleType, content: str) -> Optional[Message]:
+    def add_message_to_conversation(self, conversation_id: str, user_id: str, sender_type: str, content: str) -> Optional[MessageModel]:
         """
         Add a message to a conversation.
 
         Args:
             conversation_id: ID of the conversation to add message to
             user_id: ID of the user who owns the conversation
-            role: Role of the message sender (user, assistant, system)
+            sender_type: Type of the message sender ('user' or 'ai_assistant')
             content: Content of the message
 
         Returns:
             The newly created Message object, or None if conversation not found
         """
-        conversation = self.get_conversation_by_id(conversation_id, user_id)
+        conversation = self.get_conversation_by_user(conversation_id, user_id)
         if not conversation:
             return None
 
         if not content or not content.strip():
             raise ValueError("Message content cannot be empty")
 
-        message = Message(
-            conversation_id=conversation_id,
-            role=role,
+        try:
+            conversation_id_int = int(conversation_id)
+        except ValueError:
+            return None
+
+        message = MessageModel(
+            conversation_id=conversation_id_int,
+            sender_type=sender_type,
             content=content.strip()
         )
 
@@ -179,21 +218,23 @@ class ConversationService:
             self.db.rollback()
             raise ValueError(f"Failed to add message to conversation {conversation_id}")
 
-    def get_messages_for_conversation(self, conversation_id: int, user_id: int) -> List[Message]:
+    def get_conversation_messages(self, conversation_id: str, limit: int = 50, offset: int = 0) -> List[MessageModel]:
         """
-        Get all messages for a specific conversation.
+        Get messages for a specific conversation.
 
         Args:
             conversation_id: ID of the conversation to get messages for
-            user_id: ID of the user who owns the conversation
+            limit: Maximum number of messages to return
+            offset: Number of messages to skip
 
         Returns:
             List of Message objects for the conversation
         """
-        conversation = self.get_conversation_by_id(conversation_id, user_id)
-        if not conversation:
+        try:
+            conversation_id_int = int(conversation_id)
+            return self.db.query(MessageModel).filter(
+                MessageModel.conversation_id == conversation_id_int
+            ).order_by(MessageModel.timestamp.desc()).offset(offset).limit(limit).all()
+        except ValueError:
+            # If conversion to int fails, return empty list
             return []
-
-        return self.db.query(Message).filter(
-            Message.conversation_id == conversation_id
-        ).order_by(Message.timestamp.asc()).all()
