@@ -36,21 +36,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 class CORSProtectionMiddleware(BaseHTTPMiddleware):
     """
-    Middleware to handle CORS and related security
+    Middleware to handle CORS and related security.
+    Note: FastAPI CORSMiddleware is used in main.py for production-grade CORS handling.
+    This is kept for additional validation if needed.
     """
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         response = await call_next(request)
-
-        # Set CORS headers based on configuration
-        response.headers["Access-Control-Allow-Origin"] = "*"  # In production, specify allowed origins
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-
+        # CORS is handled by FastAPI's CORSMiddleware in main.py
         return response
 
 
-class ContentSecurityPolicyMiddleware(BaseHTTP\Middleware):
+class ContentSecurityPolicyMiddleware(BaseHTTPMiddleware):
     """
     Middleware to add Content Security Policy header
     """

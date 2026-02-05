@@ -33,8 +33,11 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
-    # CORS settings
-    allowed_origins: str = os.getenv("ALLOWED_ORIGINS", "http://localhost,http://localhost:3000,http://127.0.0.1,http://127.0.0.1:3000")
+    # CORS settings - Add Vercel deployment domains
+    allowed_origins: str = os.getenv(
+        "ALLOWED_ORIGINS", 
+        "http://localhost,http://localhost:3000,http://127.0.0.1,http://127.0.0.1:3000,https://*.vercel.app"
+    )
 
     # Performance settings
     max_message_length: int = int(os.getenv("MAX_MESSAGE_LENGTH", "10000"))  # Maximum length of a message

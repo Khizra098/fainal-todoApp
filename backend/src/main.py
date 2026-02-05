@@ -31,12 +31,16 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+from .config.settings import get_allowed_origins_list
+
+allowed_origins = get_allowed_origins_list()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=allowed_origins,  # Configured from settings
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
 
 # Include API routers
